@@ -1,0 +1,184 @@
+%把lena 512*512图像灰度级逐级递减8-1显示
+data=double(imread('lena.bmp'));
+subplot(2,4,1);
+imshow(uint8(data),[0,255]);
+title('8bits');
+for i=1:7
+    data=floor(data/2);
+    subplot(2,4,i+1);
+    imshow(uint8(data),[0,2^(8-i)-1]);
+    str=strcat(num2str(8-i),'bits');
+    title(str);
+end
+
+
+%计算lena图像的均值方差
+data=double(imread('lena.bmp'));
+mdata=mean2(data);
+sdata=std2(data)^2;
+
+
+%把lena图像用近邻、双线性和双三次插值法zoom到2048*2048；
+data=double(imread('lena.bmp'));
+%最近邻插值
+data_1=imnearest(data,2048,2048);
+subplot(1,3,1)
+imshow(uint8(data_1));
+title('最近邻');
+imwrite(uint8(data_1),'lena_nearest.bmp');
+%双线性插值
+data_2=imbilinear(data,2048,2048);
+subplot(1,3,2)
+imshow(uint8(data_2));
+title('双线性');
+imwrite(uint8(data_2),'lena_bilinear.bmp');
+%双三次
+data_3=imbicubic(data,2048,2048);
+subplot(1,3,3)
+imshow(uint8(data_3));
+title('双三次');
+imwrite(uint8(data_3),'lena_bicubic.bmp');
+
+
+%最近邻插值算法
+function data_nearest=imnearest(data,s1,s2)
+data_nearest=zeros(s1,s2);
+[x,y]=size(data);
+for i=1:s1
+    for j=1:s2
+        ii=round(i*x/s1);
+        jj=round(j*y/s2);
+        if ii<1
+            ii=1;
+        end
+        if jj<1
+            jj=1;
+        end
+        data_nearest(i,j)=data(ii,jj);
+    end
+end
+end
+
+
+%双线性插值算法
+function data_bilinear=imbilinear(data,s1,s2)
+data_bilinear=zeros(s1,s2);
+[x,y]=size(data);
+temp=[data,zeros(x,1);zeros(1,y+1)];
+for i=1:s1
+    for j=1:s2
+        ii=floor((i-1)*x/s1+1);
+        jj=floor((j-1)*y/s2+1);
+        u=double((i-1)*x/s1+1)-ii;
+        v=double((j-1)*y/s2+1)-jj;
+        data_bilinear(i,j)=(1-u)*(1-v)*temp(ii,jj)+u*(1-v)*temp(ii+1,jj)+(1-u)*v*temp(ii,jj+1)+u*v*temp(ii+1,jj+1);
+    end
+end
+
+
+%双三次插值算法
+function data_bicubic=imbicubic(data,s1,s2)
+data_bicubic=zeros(s1,s2);
+[x,y]=size(data);
+temp2=[zeros(1,y+3);zeros(x,1),data,zeros(x,2);zeros(2,y+3)];
+for i=1:s1
+    for j=1:s2
+        ii=floor((i-1)*x/s1+1);
+        jj=floor((j-1)*y/s2+1);
+        u=double((i-1)*x/s1+1)-ii;
+        v=double((j-1)*y/s2+1)-jj;
+        ii=ii+1;
+        jj=jj+1;
+        A=[w(1+u),w(u),w(1-u),w(2-u)];
+        C=[w(1+v),w(v),w(1-v),w(2-v)]';
+        B=temp2(ii-1:ii+2,jj-1:jj+2);
+        data_bicubic(i,j)=A*B*C;
+    end
+end
+
+
+%插值核函数
+function y=w(x)
+x=abs(x);
+if x<=1
+    y=1-2*x^2+x^3;
+elseif x<2&&x>1
+    y=4-8*x+5*x^2-x^3;
+else
+    y=0;
+end
+end
+
+
+%把lena和elain图像分别进行水平shear（参数为1.5)和旋转30度
+%并采用用近邻、双线性和双三次插值法zoom到2048*2048
+lena=double(imread('lena.bmp'));
+elain=double(imread('elain1.bmp'));
+She=[1,1.5,0;0,1,0;0,0,1];
+Rot=[cos(pi/6),sin(pi/6),0;-sin(pi/6),cos(pi/6),0;512*sin(pi/6),0,1];
+sy=floor(512*1.5+512);
+rx=floor(512*cos(pi/6)+512*sin(pi/6));
+ry=floor(512*cos(pi/6)+512*sin(pi/6));
+lena_0=zeros(size(lena,1),sy);
+elain_0=zeros(rx,ry);
+for i=1:512
+    for j=1:sy
+        x=[i,j,1]/She;
+        if x(1)>=1&&x(1)<=512&&x(2)>=1&&x(2)<=512
+            lena_0(i,j)=lena(floor(x(1)),floor(x(2)));
+        else
+            lena_0(i,j)=0;
+        end
+    end
+end
+for i=1:rx
+    for j=1:ry
+        x=[i,j,1]/Rot;
+        if x(1)>=1&&x(1)<=512&&x(2)>=1&&x(2)<=512
+            elain_0(i,j)=elain(floor(x(1)),floor(x(2)));
+        else
+            elain_0(i,j)=0;
+        end
+    end
+end
+% subplot(1,2,1)
+% imshow(uint8(lena_0));
+% subplot(1,2,2)
+% imshow(uint8(elain_0));
+%最近邻
+lena_1=imnearest(lena_0,2048,2048);
+elain_1=imnearest(elain_0,2048,2048);
+imwrite(uint8(lena_1),'lena1_nearest.bmp');
+imwrite(uint8(elain_1),'elain_nearest.bmp');
+subplot(2,3,1)
+imshow(uint8(lena_1));
+title('最近邻');
+subplot(2,3,4)
+imshow(uint8(elain_1));
+title('最近邻');
+%双线性
+lena_2=imbilinear(lena_0,2048,2048);
+elain_2=imbilinear(elain_0,2048,2048);
+imwrite(uint8(lena_2),'lena1_bilinear.bmp');
+imwrite(uint8(elain_2),'elain_bilinear.bmp');
+subplot(2,3,2)
+imshow(uint8(lena_2));
+title('双线性');
+subplot(2,3,5)
+imshow(uint8(elain_2));
+title('双线性');
+%双二次
+lena_3=imbicubic(lena_0,2048,2048);
+elain_3=imbicubic(elain_0,2048,2048);
+imwrite(uint8(lena_3),'lena1_bicubic.bmp');
+imwrite(uint8(elain_3),'elain_bicubic.bmp');
+subplot(2,3,3)
+imshow(uint8(lena_3));
+title('双三次');
+subplot(2,3,6)
+imshow(uint8(elain_3));
+title('双三次');
+
+
+
+
